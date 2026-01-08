@@ -1,120 +1,67 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>SHT30 温湿度监控</title>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #fff;
-      text-align: center;
-    }
-    canvas {
-      max-width: 900px;
-      margin: 20px auto;
-    }
-    .value {
-      font-size: 20px;
-      margin: 10px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>SHT30 温湿度监控</title>
+<style>
+  body { font-family: Arial; text-align:center; margin:0; background:#111; color:#fff; }
+  canvas { background:#222; display:block; margin:20px auto; }
+  h1 { margin-top:20px; }
+</style>
 </head>
-
 <body>
+<h1>SHT30 温湿度曲线</h1>
+<canvas id="chart" width="600" height="300"></canvas>
+<p id="status">正在连接 ESP32...</p>
 
-<h2>ESP32 · SHT30 实时监控</h2>
-
-<div class="value">
-  🌡 温度：<span id="temp">--</span> °C　
-  💧 湿度：<span id="humi">--</span> %
-</div>
-
-<canvas id="chart"></canvas>
-
+<!-- Chart.js 库 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  // ===== 修改为你 ESP32 的 IP =====
-  const ESP32_IP = "ws://wss://kinley-nonevolutional-orthopedically.ngrok.io//";   // ← 改这里
+const ESP32_IP = "wss://kinley-nonevolutional-orthopedically.ngrok.io/"; // ← 替换成你 ngrok 显示的完整 wss 地址
 
-  const tempSpan = document.getElementById("temp");
-  const humiSpan = document.getElementById("humi");
+let ws = new WebSocket(ESP32_IP);
+let tempData = [];
+let humiData = [];
+let labels = [];
 
-  const ctx = document.getElementById("chart").getContext("2d");
-
-  const chart = new Chart(ctx, {
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: [],
-      datasets: [
-        {
-          label: "温度 (°C)",
-          borderColor: "red",
-          data: [],
-          tension: 0.3
-        },
-        {
-          label: "湿度 (%)",
-          borderColor: "cyan",
-          data: [],
-          tension: 0.3
-        }
-      ]
+        labels: labels,
+        datasets: [
+            { label: '温度 (℃)', data: tempData, borderColor: 'red', fill:false },
+            { label: '湿度 (%)', data: humiData, borderColor: 'blue', fill:false }
+        ]
     },
     options: {
-      responsive: true,
-      scales: {
-        x: {
-          ticks: { color: "#aaa" }
-        },
-        y: {
-          ticks: { color: "#aaa" }
-        }
-      }
+        animation:false,
+        scales: { y:{ beginAtZero:true } }
     }
-  });
+});
 
-  // ===== WebSocket =====
-  const ws = new WebSocket(ESP32_IP);
+ws.onopen = () => {
+    document.getElementById('status').innerText = '已连接 ESP32';
+};
 
-  ws.onopen = () => {
-    console.log("WebSocket 已连接");
-  };
-
-  ws.onmessage = (event) => {
+ws.onmessage = (event) => {
     try {
-      const data = JSON.parse(event.data);
-      const t = data.temperature;
-      const h = data.humidity;
+        let obj = JSON.parse(event.data);
+        let now = new Date().toLocaleTimeString();
+        labels.push(now);
+        tempData.push(obj.temperature);
+        humiData.push(obj.humidity);
+        if (labels.length>30) { labels.shift(); tempData.shift(); humiData.shift(); }
+        chart.update();
+    } catch(e){ console.error(e); }
+};
 
-      const time = new Date().toLocaleTimeString();
-
-      tempSpan.textContent = t.toFixed(1);
-      humiSpan.textContent = h.toFixed(1);
-
-      chart.data.labels.push(time);
-      chart.data.datasets[0].data.push(t);
-      chart.data.datasets[1].data.push(h);
-
-      // 只保留最近 60 个点
-      if (chart.data.labels.length > 60) {
-        chart.data.labels.shift();
-        chart.data.datasets.forEach(ds => ds.data.shift());
-      }
-
-      chart.update();
-    } catch (e) {
-      console.error("数据解析失败", e);
-    }
-  };
-
-  ws.onerror = (err) => {
-    console.error("WebSocket 错误", err);
-  };
+ws.onerror = () => {
+    document.getElementById('status').innerText = 'WebSocket 连接失败';
+};
+ws.onclose = () => {
+    document.getElementById('status').innerText = 'WebSocket 已关闭';
+};
 </script>
-
 </body>
 </html>
