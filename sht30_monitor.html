@@ -7,6 +7,7 @@
   body { font-family: Arial; text-align:center; margin:0; background:#111; color:#fff; }
   canvas { background:#222; display:block; margin:20px auto; }
   h1 { margin-top:20px; }
+  #status { margin-top:10px; font-size:16px; }
 </style>
 </head>
 <body>
@@ -17,13 +18,16 @@
 <!-- Chart.js 库 -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-const ESP32_IP = "wss://kinley-nonevolutional-orthopedically.ngrok.io/"; // ← 替换成你 ngrok 显示的完整 wss 地址
+/* ===== WebSocket 设置 ===== */
+const ESP32_IP = "wss://kinley-nonevolutional-orthopedically.ngrok.io/"; // ← 填入你 ngrok 显示的 WSS 地址
 
+/* ===== 数据存储 ===== */
 let ws = new WebSocket(ESP32_IP);
 let tempData = [];
 let humiData = [];
 let labels = [];
 
+/* ===== Chart.js 初始化 ===== */
 const ctx = document.getElementById('chart').getContext('2d');
 const chart = new Chart(ctx, {
     type: 'line',
@@ -36,10 +40,16 @@ const chart = new Chart(ctx, {
     },
     options: {
         animation:false,
-        scales: { y:{ beginAtZero:true } }
+        scales: {
+            y: {
+                beginAtZero:true,
+                suggestedMax:100
+            }
+        }
     }
 });
 
+/* ===== WebSocket 回调 ===== */
 ws.onopen = () => {
     document.getElementById('status').innerText = '已连接 ESP32';
 };
@@ -51,14 +61,23 @@ ws.onmessage = (event) => {
         labels.push(now);
         tempData.push(obj.temperature);
         humiData.push(obj.humidity);
-        if (labels.length>30) { labels.shift(); tempData.shift(); humiData.shift(); }
+
+        // 保留最近 30 条数据
+        if (labels.length > 30) {
+            labels.shift();
+            tempData.shift();
+            humiData.shift();
+        }
         chart.update();
-    } catch(e){ console.error(e); }
+    } catch(e) {
+        console.error('解析 WebSocket 数据失败:', e);
+    }
 };
 
 ws.onerror = () => {
     document.getElementById('status').innerText = 'WebSocket 连接失败';
 };
+
 ws.onclose = () => {
     document.getElementById('status').innerText = 'WebSocket 已关闭';
 };
